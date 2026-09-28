@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Student API</title>
+
+    <style>
+
+        body {
+            font-family: Arial;
+            width: 700px;
+            margin: 40px auto;
+        }
+
+        input {
+            padding: 8px;
+            margin: 5px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <h1>Student Management</h1>
+
+
+
+    <!-- INSERT -->
+
+
+    <h2>Add Student</h2>
+
+    <input
+        type="text"
+        id="name"
+        placeholder="Name"
+    >
+
+    <input
+        type="text"
+        id="course"
+        placeholder="Course"
+    >
+
+    <input
+        type="number"
+        id="yearLevel"
+        placeholder="Year Level"
+    >
+
+    <button onclick="addStudent()">
+        Add Student
+    </button>
+
+
+
+    <!-- RETRIEVE -->
+
+
+    <h2>Students</h2>
+
+    <button onclick="loadStudents()">
+        Load Students
+    </button>
+
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Course</th>
+                <th>Year Level</th>
+                <th>Actions</th>
+            </tr>
+
+        </thead>
+
+        <tbody id="studentTable">
+
+        </tbody>
+
+    </table>
+
+
+    <script>
+        const API = "/api/students";
+
+        // Shared fetch helper: unwraps the { error: { code, message, details } }
+        // envelope and turns any non-2xx into an Error with .status.
+        async function request(url, options) {
+
+            const res = await fetch(url, options);
+
+            // 204 No Content has no body to parse.
+            const payload = res.status === 204
+                ? null
+                : await res.json().catch(() => null);
+
+            if (!res.ok) {
+                const error = payload?.error;
+
+                const reason = error?.details?.length
+                    ? error.details.map(d => `${d.field}: ${d.message}`).join("\n")
+                    : error?.message || `Request failed with status ${res.status}`;
+
+                const err = new Error(reason);
+                err.status = res.status;
+                throw err;
+            }
+
+            return payload;
+
+        }
+
+        function reportError(err) {
+            alert(`${err.message}\n\n(HTTP ${err.status})`);
+        }
+
+        async function loadStudents() {
+
+            try {
+                const students = await request(API);
+
+                const tbody = document.getElementById("studentTable");
+
+                tbody.innerHTML = students.map(s => `
+                    <tr>
+                        <td>${s.id}</td>
+                        <td>${s.name}</td>
+                        <td>${s.course}</td>
+                        <td>${s.year_level}</td>
+                        <td>
+                            <button onclick="editStudent(${s.id})">Edit</button>
+                            <button onclick="deleteStudent(${s.id})">Delete</button>
+                        </td>
+                    </tr>
+                `).join("");
+            } catch (err) {
+                reportError(err);
+            }
+
+        }
+
+        async function addStudent() {
+
+            const name = document.getElementById("name").value;
+            const course = document.getElementById("course").value;
+            const year_level = document.getElementById("yearLevel").value;
+
+            if (!name || !course || !year_level) {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            try {
+                await request(API, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, course, year_level })
+                });
+
+                document.getElementById("name").value = "";
+                document.getElementById("course").value = "";
+                document.getElementById("yearLevel").value = "";
+
+                loadStudents();
+            } catch (err) {
+                reportError(err);
+            }
+
+        }
+
+        async function editStudent(id) {
+
+            try {
+                const s = await request(`${API}/${id}`);
+
+                const name = prompt("Name", s.name);
+                if (name === null) return;
+
+                const course = prompt("Course", s.course);
+                if (course === null) return;
+
+                const year_level = prompt("Year Level", s.year_level);
+                if (year_level === null) return;
+
+                await request(`${API}/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, course, year_level })
+                });
+
+                loadStudents();
+            } catch (err) {
+                reportError(err);
+            }
+
+        }
+
+        async function deleteStudent(id) {
+
+            if (!confirm(`Delete student #${id}?`)) return;
+
+            try {
+                await request(`${API}/${id}`, { method: "DELETE" });
+                loadStudents();
+            } catch (err) {
+                reportError(err);
+            }
+
+        }
+
+        loadStudents();
+    </script>
+
+</body>
+
+</html>
